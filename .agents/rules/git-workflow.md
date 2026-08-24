@@ -38,3 +38,7 @@ Branches MUST follow the pattern: `<type>/<short-description>`
 ## Git Workflow Master Skill
 When any Git-related task arises (branching, committing, conflicts, CI, recovery),
 activate the **git-workflow-master** skill located at `.agents/skills/git-workflow-master/SKILL.md`.
+
+## Agent Ecosystem
+This project has 11 specialized agents. For the full routing table and skill paths,
+see `.agents/rules/agent-routing.md`.
