@@ -1,5 +1,6 @@
+import asyncio
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 from services.models.base import ModelProvider, LLMMessage
 from services.agents.research.research_agent import ResearchAgent
 from services.agents.data.data_agent import DataAgent
@@ -12,13 +13,12 @@ from services.agents.backend.backend_architect_agent import BackendArchitectAgen
 from services.agents.database.database_optimizer_agent import DatabaseOptimizerAgent
 from services.agents.frontend.frontend_developer_agent import FrontendDeveloperAgent
 from services.orchestrator.routing.supervisor import SupervisorRouter
-from services.orchestrator.state.agent_state import AgentStateDict
 
 logger = logging.getLogger(__name__)
 
 
 class OrchestrationGraph:
-    """LangGraph Orchestration Graph connecting Router, Agents, and LLMs."""
+    """LangGraph Orchestration Graph connecting Router, Agents, and Multi-Agent Parallel Workflows."""
 
     def __init__(self, provider: ModelProvider):
         self.provider = provider
@@ -34,14 +34,63 @@ class OrchestrationGraph:
         self.database_optimizer_agent = DatabaseOptimizerAgent(provider)
         self.frontend_developer_agent = FrontendDeveloperAgent(provider)
 
+    async def execute_multi_agent_orchestration(self, user_message: str) -> Dict[str, Any]:
+        """Executes all 10 specialized AI agents concurrently and synthesizes a unified Multi-Agent Report."""
+        logger.info(f"Orchestrating Multi-Agent Broadcast across all 10 AI agents for: '{user_message[:40]}...'")
+
+        agents_list = [
+            ("📄 DocumentAgent (RAG & Documentos Locais)", self.document_agent),
+            ("🏗️ BackendArchitect (Arquitetura & APIs)", self.backend_architect_agent),
+            ("🎨 FrontendDeveloper (UI/UX & Componentes)", self.frontend_developer_agent),
+            ("⚡ DatabaseOptimizer (SQL & Indexação)", self.database_optimizer_agent),
+            ("🧠 RAGPipelineEngineer (Estratégias RAG)", self.rag_engineer_agent),
+            ("🔍 CodeReviewer (Qualidade & Segurança)", self.code_reviewer_agent),
+            ("🎯 PromptEngineer (Prompts & Eng. de IA)", self.prompt_engineer_agent),
+            ("📊 DataAgent (Métricas & Análise de Dados)", self.data_agent),
+            ("🤖 AutomationAgent (Automação & n8n)", self.automation_agent),
+            ("🔬 ResearchAgent (Pesquisa & Síntese)", self.research_agent),
+        ]
+
+        tasks = [agent.run(user_message) for _, agent in agents_list]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        report_sections = []
+        executed_agents = []
+
+        for (label, agent_obj), res in zip(agents_list, results):
+            if isinstance(res, Exception):
+                logger.error(f"Error executing agent {label}: {res}")
+                report_sections.append(f"#### {label}\n⚠️ *Instabilidade temporária no processamento deste agente.*")
+            else:
+                executed_agents.append(res.agent_name)
+                report_sections.append(f"#### {label}\n{res.content}\n")
+
+        unified_response = (
+            f"## 🤖 Painel de Orquestração Multi-Agentes (Análise Consolidada)\n\n"
+            f"**Tarefa Solicitada:** *\"{user_message}\"*\n"
+            f"**Total de Agentes Especialistas Consultados:** {len(executed_agents)} IAs ativas\n\n"
+            + "\n---\n\n".join(report_sections)
+        )
+
+        return {
+            "response": unified_response,
+            "agent": "MultiAgentOrchestrator",
+            "metadata": {
+                "orchestration_mode": "multi_agent_broadcast",
+                "agents_executed": executed_agents,
+                "agents_count": len(executed_agents)
+            }
+        }
+
     async def execute(self, user_message: str) -> Dict[str, Any]:
         """Executes the orchestration workflow graph."""
-        # 1. Routing / Supervisor node
         target_node = await self.router.route(user_message)
         logger.info(f"Orchestration Supervisor routed request to: {target_node}")
 
-        # 2. Agent / LLM node execution
-        if target_node == "frontend_developer_agent":
+        if target_node == "multi_agent_orchestration":
+            return await self.execute_multi_agent_orchestration(user_message)
+
+        elif target_node == "frontend_developer_agent":
             res = await self.frontend_developer_agent.run(user_message)
             return {"response": res.content, "agent": res.agent_name, "metadata": res.metadata}
 
@@ -82,13 +131,4 @@ class OrchestrationGraph:
             return {"response": res.content, "agent": res.agent_name, "metadata": res.metadata}
 
         else:
-            messages = [
-                LLMMessage(role="system", content="Você é o assistente inteligente da AI Agent Platform."),
-                LLMMessage(role="user", content=user_message)
-            ]
-            llm_res = await self.provider.generate(messages)
-            return {
-                "response": llm_res.content,
-                "agent": "DirectLLM",
-                "metadata": {"model": llm_res.model, "usage": llm_res.usage or {}}
-            }
+            return await self.execute_multi_agent_orchestration(user_message)
